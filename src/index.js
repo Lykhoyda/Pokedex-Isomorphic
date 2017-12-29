@@ -1,23 +1,56 @@
-import React from 'react'
-import ReactDOM from 'react-dom'
-import { Provider } from 'react-redux'
-import { BrowserRouter } from 'react-router-dom'
+import 'babel-polyfill';
+import express from 'express';
+import { matchRoutes } from 'react-router-config';
+import proxy from 'express-http-proxy';
+import Routes from './client/Routes';
+import renderer from './helpers/renderer';
+import createStore from './helpers/createStore';
 
-import configureStore from './store'
-import './index.css'
-import App from './containers/App'
-import registerServiceWorker from './registerServiceWorker'
+const app = express();
 
-// Let the reducers handle initial state
-const initialState = {}
-const store = configureStore(initialState)
+app.use(
+  '/api',
+  proxy('http://react-ssr-api.herokuapp.com', {
+    proxyReqOptDecorator(opts) {
+      opts.headers['x-forwarded-host'] = 'localhost:3000';
+      return opts;
+    }
+  })
+);
+app.use(express.static('public'));
+app.get('*', (req, res) => {
+  const store = createStore(req);
 
-ReactDOM.render(
-  <Provider store={store}>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </Provider>
-, document.getElementById('root')
-)
-registerServiceWorker()
+  const promises = matchRoutes(Routes, req.path)
+    .map(({ route }) => {
+      return route.loadData ? route.loadData(store) : null;
+    })
+    .map(promise => {
+      if (promise) {
+        return new Promise((resolve, reject) => {
+          promise.then(resolve).catch(resolve);
+        });
+      }
+    });
+
+  Promise.all(promises).then(() => {
+    const context = {};
+    const content = renderer(req, store, context);
+
+    if (context.url) {
+      return res.redirect(301, context.url)
+    }
+
+    if (context.notFound) {
+      res.status(404);
+    }
+
+    res.send(content).catch(() => {
+      res.send('Something going wrong');
+    });
+  });
+});
+
+app.listen(3000, () => {
+  console.log('Listening on port 3000');
+});
