@@ -1,11 +1,38 @@
-import React from 'react';
+import React, {
+  Component
+} from 'react';
+import {
+  connect
+} from 'react-redux';
+import {
+  getPokemonByName
+} from '../actions';
 
-const Home = () => (
-  <div className="center-align" style={{ marginTop: '200px' }}>
-    <h3>Welcome</h3>
-  </div>
-);
+class HomePage extends Component {
+  componentDidMount() {
+    this.props.getPokemonByName('eevee');
+  }
 
-export default { 
-  component: Home
+  render() {
+    return ( <div> Board </div>);
+  }
+}
+
+const mapStateToProps = state => {
+  return {
+    data
+  };
+};
+
+const loadData = ({
+  dispatch
+}) => dispatch(getPokemonByName('eevee'));
+
+
+
+export default {
+  loadData,
+  component: connect(mapStateToProps, {
+    getPokemonByName
+  })(HomePage)
 };
